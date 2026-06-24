@@ -38,7 +38,9 @@ encoder = LabelEncoder()
 X["ticker"] = encoder.fit_transform(X["ticker"])
 
 # Train-Test Split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
 # Define models to evaluate
 models = {
@@ -49,7 +51,7 @@ models = {
     "Random Forest Regressor": RandomForestRegressor(random_state=42),
     "Gradient Boosting Regressor": GradientBoostingRegressor(random_state=42),
     "Decision Tree Regressor": DecisionTreeRegressor(random_state=42),
-    "Support Vector Regressor (SVR)": SVR(kernel='linear'),
+    "Support Vector Regressor (SVR)": SVR(kernel="linear"),
 }
 
 # Evaluate models
@@ -73,7 +75,12 @@ print(f"Model performance metrics saved to {performance_file}")
 
 # Plot and save top models' R² scores
 plt.figure(figsize=(12, 8))
-plt.barh(performance_df["Model"], performance_df["R-Squared"], color="#FF8F46", edgecolor="#0F3166")
+plt.barh(
+    performance_df["Model"],
+    performance_df["R-Squared"],
+    color="#FF8F46",
+    edgecolor="#0F3166",
+)
 plt.xlabel("R-Squared", color="#000000", fontsize=12)
 plt.ylabel("Model", color="#000000", fontsize=12)
 plt.title("Model Comparison by R-Squared", color="#000000", fontsize=14)
@@ -87,6 +94,8 @@ plt.close()
 
 # Print the best model
 best_model = performance_df.iloc[0]
-print(f"The best model is {best_model['Model']} with R²: {best_model['R-Squared']:.4f} and RMSE: {best_model['RMSE']:.4f}")
+print(
+    f"The best model is {best_model['Model']} with R²: {best_model['R-Squared']:.4f} and RMSE: {best_model['RMSE']:.4f}"
+)
 
 print("Model comparison complete.")
