@@ -4,17 +4,34 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
     pkg-config \
     libmariadb-dev \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Install in stages - core deps first
+RUN pip install --no-cache-dir \
+    pandas \
+    mysql-connector-python \
+    sqlalchemy \
+    python-dotenv \
+    matplotlib \
+    seaborn \
+    yfinance
+
+# Install ML packages
+RUN pip install --no-cache-dir \
+    scikit-learn \
+    xgboost \
+    lightgbm \
+    catboost || echo "Some ML packages skipped"
 
 COPY scripts/ ./scripts/
 COPY models/ ./models/
 COPY sql/ ./sql/
-COPY visualizations/ ./visualizations/
 
 RUN useradd -m appuser && chown -R appuser /app
 USER appuser
