@@ -1,7 +1,8 @@
 import os
+
 import pandas as pd
-import yfinance as yf
 import sweetviz as sv
+import yfinance as yf
 
 # Create directories if they don't exist
 RAW_DATA_DIR = "../data/raw/"
