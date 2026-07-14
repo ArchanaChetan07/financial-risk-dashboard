@@ -62,7 +62,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
       - name: Install dependencies
-        run: pip install pandas scikit-learn mysql-connector-python python-dotenv pytest pytest-cov
+        run: pip install pandas scikit-learn matplotlib mysql-connector-python python-dotenv pytest pytest-cov
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=scripts --cov-report=xml --cov-report=term-missing -k "not db_connection"
       - name: Upload coverage report
