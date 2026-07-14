@@ -1,100 +1,151 @@
-# financial-risk-dashboard
+# Financial Risk Dashboard
 
-Python · machine-learning · scikit-learn · pandas · Jupyter · CI/CD · model-evaluation · API · cloud. Repo scale: 51 files; GitHub Actions CI; automated tests; 7 Python modules. End-to-end ML: data prep, training, evaluation, and deployment-ready packaging.
+### Equity risk pipeline for four mega-cap tickers — Yahoo Finance ingest, MySQL metrics, and ROI regression benchmarks
 
-## Results (numbers)
+[![CI/CD](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions/workflows/ci-cd.yml)
+[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/pytest-8%20tests-1f8a4c)](tests/test_dashboard.py)
+[![License](https://img.shields.io/badge/license-see%20repo-2d3748)](#license)
 
-| Metric | Value |
+End-to-end equity risk analytics for **AAPL**, **MSFT**, **GOOGL**, and **META**: pull one year of Yahoo Finance OHLCV, compute rolling volatility and Sharpe ratio, persist metrics to MySQL (optional), export processed CSVs, and benchmark eight scikit-learn regressors predicting ROI. Includes Sweetviz EDA HTML reports, matplotlib/seaborn charts, and GitHub Actions for lint, security scan, pytest, and Docker build.
+
+---
+
+## Key Results
+
+| Metric | Value | Source |
+|---|---|---|
+| Tickers tracked | **4** (AAPL, MSFT, GOOGL, META) | `scripts/data_collection.py` |
+| Combined processed rows | **1,008** (252 per ticker) | `data/processed/combined_stock_metrics.csv` |
+| Derived metrics | Daily Return, 20-day Volatility, ROI, Sharpe Ratio | `scripts/data_processing.py` |
+| Regression models compared | **8** (Linear, Ridge, Lasso, ElasticNet, RF, GBM, DT, SVR) | `scripts/predictive_models.py` |
+| Best saved R² (Ridge) | **0.999998** (RMSE 2.24e-05) | `models/model_performance.csv` |
+| MySQL tables | **4** (companies, categories, stock_categories, stock_metrics) | `sql/create_tables.sql` |
+| Unit tests | **8** | `tests/test_dashboard.py` |
+| CI workflows | **3** (ci-cd, pr-checks, retrain) | `.github/workflows/` |
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    YF[Yahoo Finance yfinance] --> DC[data_collection.py]
+    DC --> RAW[data/raw/*.csv]
+    RAW --> DP[data_processing.py]
+    DP --> METRICS[Volatility / ROI / Sharpe]
+    METRICS --> CSV[data/processed/combined_stock_metrics.csv]
+    METRICS --> DB[(MySQL stock_metrics)]
+    CSV --> PM[predictive_models.py]
+    PM --> PERF[models/model_performance.csv]
+    CSV --> VIZ[visualizations/generate_graphs.py]
+    RAW --> EDA[Sweetviz HTML reports]
+    CI[GitHub Actions] --> LINT[flake8 / black / isort]
+    CI --> TEST[pytest]
+    CI --> DOCK[Docker build]
+```
+
+**How it works:** `data_collection.py` fetches one year of history per ticker and generates Sweetviz EDA reports. `data_processing.py` computes rolling risk metrics, writes per-ticker CSVs plus a combined file, and optionally upserts rows into MySQL. `predictive_models.py` trains eight regressors on Close/Volume/returns features to predict ROI and saves ranked performance. `generate_graphs.py` produces price, volatility, Sharpe, and correlation charts.
+
+---
+
+## Tech Stack
+
+| Layer | Choice |
 |---|---|
-| Tracked repository files | **51** |
-| Python modules | **7** |
-| Notebooks | **0** |
-| Markdown docs | **3** |
-| CI workflows present | **Yes** |
-| Automated tests present | **Yes** |
-| Project highlights | **See repository artifacts for measured results.** |
+| Language | Python 3.10 |
+| Data | pandas, yfinance, Sweetviz |
+| Database | MySQL (`mysql-connector-python`, SQLAlchemy) |
+| ML | scikit-learn (8 regressors), StandardScaler, LabelEncoder |
+| Viz | matplotlib, seaborn, scipy stats |
+| Packaging | Docker (`infrastructure/Dockerfile`) |
+| CI | GitHub Actions — lint, bandit, pip-audit, pytest, Docker build |
 
-## Tech stack
+---
 
-- **Primary language:** HTML
-- **Languages (GitHub):** HTML (3450431 bytes), Python (29016 bytes), Dockerfile (1339 bytes)
-- **Focus area:** ml
-- **Tooling keywords:** Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM
+## Features
 
-## Architecture (logical)
+- Yahoo Finance ingest for four large-cap tech tickers with local CSV cache
+- Rolling 20-day volatility and Sharpe ratio per trading day
+- Optional MySQL persistence with company/category normalization
+- Sweetviz HTML EDA reports per raw ticker file
+- Eight-model ROI regression benchmark with saved CSV + bar chart
+- High-resolution risk charts (price trends, return distributions, correlation heatmap)
+- Mocked DB connection tests for offline CI
 
-\\	ext
-Inputs → Processing / models / agents → Evaluation & metrics → CI checks → Artifacts
-\
-## Engineering practices
+---
 
-1. Reproducible layout with clear module boundaries  
-2. Automated validation via CI and/or tests when present  
-3. Documentation that states measurable outcomes, not slogans  
-4. Skill surface aligned to common JD keywords: Python, machine learning, NLP/LLM, Kubernetes, Docker, observability, data pipelines  
+## Installation & Usage
 
-## Quick start
-
-\\ash
+```bash
 git clone https://github.com/ArchanaChetan07/financial-risk-dashboard.git
 cd financial-risk-dashboard
-# Install project requirements (see requirements.txt / pyproject.toml / environment files if present)
-# Run tests or main entrypoints documented in this repo
-\
-## Skills demonstrated
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-Python · machine-learning · CI/CD · API design · testing · automation · Docker · Kubernetes · FastAPI · Prometheus · data-science · LLM · MLOps · software-engineering · benchmarking · observability
+```bash
+# 1. Fetch Yahoo Finance data + EDA reports
+cd scripts && python data_collection.py
 
-## License / notice
+# 2. Compute metrics (set DB_* env vars for MySQL, or CSV-only still works)
+python data_processing.py
 
-See repository license file if present. Metrics above are derived from repository structure and previously published validation notes where available.
+# 3. Train/evaluate regressors
+python predictive_models.py
 
+# 4. Generate charts
+cd ../visualizations && python generate_graphs.py
 
-### Extended notes
+# Tests
+pytest tests/ -v
+```
 
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
+**MySQL setup:** run `sql/create_tables.sql`, then export `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
 
+**Docker:**
 
-### Extended notes
+```bash
+docker build -f infrastructure/Dockerfile -t financial-risk-dashboard .
+docker run --env-file .env financial-risk-dashboard
+```
 
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
+---
 
+## Project Structure
 
-### Extended notes
+```text
+financial-risk-dashboard/
+├── scripts/
+│   ├── data_collection.py       # yfinance fetch + Sweetviz EDA
+│   ├── data_processing.py       # metrics + MySQL upsert
+│   └── predictive_models.py     # 8-model ROI regression
+├── visualizations/
+│   └── generate_graphs.py         # matplotlib/seaborn charts
+├── data/
+│   ├── raw/                       # per-ticker Yahoo CSVs
+│   └── processed/                 # metrics + EDA HTML
+├── models/
+│   └── model_performance.csv      # saved R² / RMSE rankings
+├── sql/create_tables.sql
+├── tests/test_dashboard.py        # 8 pytest cases
+├── infrastructure/Dockerfile
+└── .github/workflows/             # ci-cd, pr-checks, retrain
+```
 
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
+---
 
+## Future Improvements
 
-### Extended notes
+- Add walk-forward validation to avoid ROI feature leakage in regression benchmarks
+- Streamlit or static dashboard over `combined_stock_metrics.csv`
+- Wire retrain workflow to scheduled model refresh on new Yahoo pulls
+- Parameterize ticker list via config instead of hard-coded symbols
 
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
+---
 
+## License
 
-### Extended notes
-
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
-
-
-### Extended notes
-
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
-
-
-### Extended notes
-
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
-
-
-### Extended notes
-
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
-
-
-### Extended notes
-
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
-
-
-### Extended notes
-
-This section expands documentation for completeness: reproducibility, keyword coverage for Python, machine-learning, CI/CD, API, Docker, Kubernetes, FastAPI, Prometheus, testing, automation, MLOps, LLM, data-science, software-engineering, benchmarking, and observability practices used across the portfolio.
+See repository license file if present.
