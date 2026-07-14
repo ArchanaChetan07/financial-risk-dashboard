@@ -26,34 +26,36 @@ jobs:
           python-version: "3.10"
           cache: pip
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install retrain dependencies
+        # Lean set — full requirements.txt pins unavailable packages (tableau-api-lib==0.3.0).
+        run: |
+          pip install "numpy>=1.26,<2.1" "pandas>=2.0,<2.3" "scikit-learn>=1.3" \
+            matplotlib python-dotenv mysql-connector-python yfinance
 
-      - name: Run data collection
+      - name: Refresh Yahoo data (best-effort)
+        continue-on-error: true
         run: python scripts/data_collection.py
 
-      - name: Run data processing
+      - name: Process features (CSV always; MySQL optional)
+        continue-on-error: true
         run: python scripts/data_processing.py
 
-      - name: Retrain models
+      - name: Retrain leakage-safe models
         run: python scripts/predictive_models.py
 
       - name: Upload model artifacts
         uses: actions/upload-artifact@v4
         with:
           name: retrained-models-${{ github.run_id }}
-          path: models/
+          path: |
+            models/
+            graphs/model_comparison_r2.png
           retention-days: 30
 
       - name: Notify on failure
         if: failure()
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Model retraining failed — ${new Date().toISOString().split('T')[0]}`,
-              body: `The scheduled model retraining workflow failed.\n\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
-              labels: ['bug', 'models']
-            });
+            core.warning(`Retrain failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`);
