@@ -1,12 +1,13 @@
 import os
+from pathlib import Path
 
 import mysql.connector
 import pandas as pd
 from dotenv import load_dotenv
 
-# Define directories
-RAW_DATA_DIR = "../data/raw/"
-PROCESSED_DATA_DIR = "../data/processed/"
+ROOT = Path(__file__).resolve().parents[1]
+RAW_DATA_DIR = str(ROOT / "data" / "raw") + os.sep
+PROCESSED_DATA_DIR = str(ROOT / "data" / "processed") + os.sep
 os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
 
 # Load environment variables
@@ -164,23 +165,35 @@ def process_stock_data(file_name):
         data["ticker"] = stock_symbol
 
         # Calculate financial metrics
-        data["Daily Return"] = data["Close"].pct_change()  # Daily return calculation
+        # NOTE: Daily Return and ROI are algebraically identical (pct_change ≡
+        # (Close/Close.shift(1))-1). Both are kept for dashboard/Tableau
+        # compatibility, but must NEVER both appear as (feature, target) in ML.
+        data["Daily Return"] = data["Close"].pct_change()
+        data["ROI"] = (data["Close"] / data["Close"].shift(1)) - 1
+        # min_periods=20 avoids one-observation "volatility"; analytical charts
+        # may still use same-day rolling values — ML lagging lives in
+        # predictive_models.build_leakage_safe_frame.
         data["Volatility"] = (
-            data["Daily Return"].rolling(window=20, min_periods=1).std()
-        )  # Volatility
-        data["ROI"] = (
-            data["Close"] / data["Close"].shift(1)
-        ) - 1  # Return on Investment
-        rolling_mean = data["Daily Return"].rolling(window=20, min_periods=1).mean()
-        rolling_std = data["Daily Return"].rolling(window=20, min_periods=1).std()
-        data["Sharpe Ratio"] = rolling_mean / rolling_std  # Sharpe ratio
+            data["Daily Return"].rolling(window=20, min_periods=20).std()
+        )
+        rolling_mean = data["Daily Return"].rolling(window=20, min_periods=20).mean()
+        rolling_std = data["Daily Return"].rolling(window=20, min_periods=20).std()
+        data["Sharpe Ratio"] = rolling_mean / rolling_std
 
-        # Handle missing or insufficient data for rolling calculations
-        data.fillna(method="bfill", inplace=True)  # Backfill missing data
-        data.fillna(method="ffill", inplace=True)  # Forward fill as fallback
+        data = data.bfill().ffill()
 
-        # Save processed data
-        save_to_database(data.reset_index(), stock_symbol)
+        # Persist CSV always; MySQL is optional (skip if env vars missing).
+        processed_file_path = os.path.join(
+            PROCESSED_DATA_DIR, f"processed_stock_metrics_{stock_symbol}.csv"
+        )
+        data.reset_index().to_csv(processed_file_path, index=False)
+        print(
+            f"Processed stock metrics for {stock_symbol} saved to {processed_file_path}."
+        )
+        if all(DB_CONFIG.get(k) for k in ("host", "user", "password", "database")):
+            save_to_database(data.reset_index(), stock_symbol)
+        else:
+            print(f"DB env not set — skipping MySQL write for {stock_symbol}.")
         return data.reset_index()
     except Exception as e:
         print(f"Error processing {file_name}: {e}")
