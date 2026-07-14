@@ -1,250 +1,123 @@
-# Financial Risk Dashboard
+![CI](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions/workflows/ci-cd.yml/badge.svg)
 
-### Yahoo Finance equity ETL → risk metrics → model baselines → Tableau / Grafana for AAPL, GOOGL, META, MSFT
+Equity risk analytics pipeline — yfinance ETL, scikit-learn model comparison, Tableau dashboard, CI/CD retrain workflows.
 
-[![CI/CD](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions/workflows/ci-cd.yml)
-[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](requirements.txt)
-[![yfinance](https://img.shields.io/badge/data-yfinance-0F766E)](scripts/data_collection.py)
-[![Tableau](https://img.shields.io/badge/viz-Tableau%20.twbx-E97627?logo=tableau&logoColor=white)](visualizations/tableau_project.twbx)
-[![Docker](https://img.shields.io/badge/Docker-python%3A3.10--slim-2496ED?logo=docker&logoColor=white)](infrastructure/Dockerfile)
-[![MySQL](https://img.shields.io/badge/SQL-MySQL%20schema-4479A1?logo=mysql&logoColor=white)](sql/create_tables.sql)
+Best leakage-safe model: **Ridge R² = 0.011** (chronological holdout, next-day return) — Linear 0.011 · Gradient Boosting −0.497 — **11/11** tests — automated retrain CI.
 
-> Repeatable path from **Yahoo Finance** downloads to **volatility / Sharpe / ROI** feature tables, **Sweetviz EDA**, **sklearn regressor baselines**, packaged **Tableau** workbook, **Grafana** JSON, and **CI + Monday retrain** workflows.
-
-**Repo:** [github.com/ArchanaChetan07/financial-risk-dashboard](https://github.com/ArchanaChetan07/financial-risk-dashboard)
+How to run: `docker build -f infrastructure/Dockerfile -t financial-risk-dashboard . && docker run --rm financial-risk-dashboard` (retrains on committed processed features).
 
 ---
 
-## Verified results (committed artifacts)
+## Overview
 
-| Metric | Value | Source |
-|---|---|---|
-| Tickers | **AAPL, GOOGL, META, MSFT** | `data/raw/*_yahoo.csv` |
-| Raw bars per ticker | **252** (~1y daily) | same |
-| Raw date span (AAPL) | **2024-01-18 → 2025-01-17** | `data/raw/AAPL_yahoo.csv` |
-| Combined feature rows | **1,008** (252 × 4) | `data/processed/combined_stock_metrics.csv` |
-| Risk features | Daily Return · Volatility (20d) · ROI · Sharpe Ratio | `scripts/data_processing.py` |
-| Regressors evaluated | **8** | `models/model_performance.csv` |
-| Linear Regression R² | **1.0** · RMSE ≈ **1.86e-17** | `models/model_performance.csv` |
-| Ridge Regression R² | **0.999998** · RMSE ≈ **2.24e-05** | same |
-| Gradient Boosting R² | **0.997313** · RMSE ≈ **8.93e-04** | same |
-| Random Forest R² | **0.995265** · RMSE ≈ **1.18e-03** | same |
-| Decision Tree R² | **0.992014** | same |
-| Lasso / ElasticNet R² | **−0.0226** | same |
-| SVR R² | **−1.983** | same |
-| Sweetviz EDA reports | **4** HTML | `data/processed/*_eda_report.html` |
-| Graph PNGs | **10** | `graphs/` |
-| Unit tests | **8** | `tests/test_dashboard.py` |
-| CI workflows | **3** (`ci-cd`, `pr-checks`, `retrain`) | `.github/workflows/` |
-| Tracked files | **51** | git tree |
-
-```mermaid
-xychart-beta
-    title Committed R² by model (model_performance.csv)
-    x-axis [Linear, Ridge, GradBoost, RandForest, DecTree, Lasso, ElasticNet, SVR]
-    y-axis "R-Squared" -2 --> 1.1
-    bar [1.0, 0.999998, 0.997313, 0.995265, 0.992014, -0.022555, -0.022555, -1.982834]
-```
-
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'pie1':'#0F3166','pie2':'#FF8F46','pie3':'#4B5563','pie4':'#D3D3D3'}}}%%
-pie showData title Combined metrics rows by ticker
-    "AAPL" : 252
-    "GOOGL" : 252
-    "META" : 252
-    "MSFT" : 252
-```
-
-**Interpretability note:** In `data_processing.py`, `ROI` is defined as `(Close / Close.shift(1)) - 1`, which matches `Daily Return` (`pct_change`). The ROI-prediction task therefore includes a near-duplicate of the target among features — near-perfect linear R² is an **artifact of that design**, not out-of-sample predictive alpha. Numbers above are exactly what is checked into `model_performance.csv`.
+End-to-end path from Yahoo Finance daily bars for **AAPL / GOOGL / META / MSFT** through risk-metric feature tables (volatility, Sharpe, ROI) into a **leakage-safe** sklearn baseline comparison and packaged Tableau / Grafana artifacts.
 
 ---
 
-## Architecture
+## Data
 
-```mermaid
-flowchart TB
-    subgraph Collect["scripts/data_collection.py"]
-        YF["yfinance · period=1y"]
-        RAW["data/raw/{AAPL,GOOGL,META,MSFT}_yahoo.csv"]
-        SV["Sweetviz EDA HTML"]
-    end
+| Item | Value |
+|------|--------|
+| Tickers | AAPL, GOOGL, META, MSFT |
+| Source | Yahoo Finance via `yfinance` (`scripts/data_collection.py`) |
+| Bars / ticker | 252 (~1y daily) |
+| Combined rows | **1,008** (`data/processed/combined_stock_metrics.csv`) |
+| Risk columns | Daily Return · ROI · Volatility (20d) · Sharpe Ratio |
 
-    subgraph Process["scripts/data_processing.py"]
-        FEAT["Daily Return · Volatility(20) · ROI · Sharpe"]
-        CSV["combined_stock_metrics.csv · 1008 rows"]
-        DB["Optional MySQL · companies / stock_metrics"]
-    end
-
-    subgraph Model["scripts/predictive_models.py"]
-        SPLIT["80/20 split · StandardScaler · LabelEncoder"]
-        SK["8 sklearn regressors"]
-        PERF["models/model_performance.csv"]
-    end
-
-    subgraph Present
-        G["graphs/*.png · 10 assets"]
-        T["visualizations/tableau_project.twbx"]
-        GR["monitoring/grafana_dashboard.json"]
-    end
-
-    YF --> RAW --> FEAT --> CSV
-    RAW --> SV
-    CSV --> DB
-    CSV --> SK --> PERF
-    CSV --> G & T & GR
-```
-
-### Pipeline sequence
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as data_collection
-    participant P as data_processing
-    participant M as predictive_models
-    participant V as generate_graphs / Tableau
-    participant CI as GitHub Actions
-
-    C->>C: yf.Ticker.history(period=1y)
-    C->>C: Sweetviz analyze → HTML
-    P->>P: rolling risk metrics + MySQL upsert
-    P->>P: write combined_stock_metrics.csv
-    M->>M: train 8 regressors on ROI
-    M->>M: sort by R² → model_performance.csv
-    V->>V: matplotlib / seaborn PNGs + .twbx
-    CI->>CI: lint · bandit · pytest · Docker · Mon retrain cron
-```
-
-### Feature engineering (code-faithful)
-
-| Feature | Formula in `data_processing.py` |
-|---|---|
-| Daily Return | `Close.pct_change()` |
-| Volatility | `Daily Return.rolling(20, min_periods=1).std()` |
-| ROI | `(Close / Close.shift(1)) - 1` |
-| Sharpe Ratio | `rolling_mean(20) / rolling_std(20)` of Daily Return |
-
-Model features: `Close`, `Volume`, `Daily Return`, `Volatility`, `Sharpe Ratio`, `ticker` → target **`ROI`**.
+> Note: `Daily Return` (`pct_change`) and `ROI` (`(Close/Close.shift(1))-1`) are algebraically identical. Both are kept for dashboard columns; they must not both appear as *(feature, target)* in ML.
 
 ---
 
-## Model comparison (artifact)
+## Methodology (leakage-safe)
 
-| Rank | Model | R² | RMSE |
-|---:|---|---:|---:|
-| 1 | Linear Regression | 1.000000 | 1.86e-17 |
-| 2 | Ridge Regression | 0.999998 | 2.24e-05 |
-| 3 | Gradient Boosting Regressor | 0.997313 | 8.93e-04 |
-| 4 | Random Forest Regressor | 0.995265 | 1.18e-03 |
-| 5 | Decision Tree Regressor | 0.992014 | 1.54e-03 |
-| 6 | Lasso Regression | −0.022555 | 0.0174 |
-| 7 | ElasticNet Regression | −0.022555 | 0.0174 |
-| 8 | Support Vector Regressor (SVR) | −1.982834 | 0.0297 |
+Predicting same-day `ROI` with `Daily Return` as a feature is a tautology. The corrected pipeline:
+
+1. **Target** = `Next_Day_Return` (`Daily Return.shift(-1)` per ticker)
+2. **Features** = lagged only: `Close_lag1`, `Volume_lag1`, `Return_lag1`, `Volatility_lag1`, `Sharpe_lag1`, `ticker`
+3. **Split** = chronological (most recent ~20% of dates held out) — not random
+4. **Scaler** fit on the training fold only
+
+This is intentional ML hygiene for financial time series; random splits and unshifted rolling stats would leak future / same-day information.
 
 ---
 
-## Data & visuals
+## Results (corrected, chronological holdout)
 
-| Layer | Contents |
-|---|---|
-| Raw | 4 CSVs · OHLCV + dividends/splits · 252 rows each |
-| Processed | Per-ticker metrics CSVs + **combined** 1,008-row table + 4 Sweetviz HTML reports |
-| Graphs | Closing trends · returns distributions · volatility · Sharpe · correlation · sector metrics · **R² comparison** |
-| BI | `visualizations/tableau_project.twbx` |
-| Ops | `monitoring/grafana_dashboard.json` |
-| Schema | `sql/create_tables.sql` — `companies`, `categories`, `stock_categories`, `stock_metrics` |
+| Model | R² | RMSE | MAE | Train / Test |
+|-------|---:|-----:|----:|-------------:|
+| Ridge Regression | **0.0110** | 0.01589 | 0.01202 | 800 / 200 |
+| Linear Regression | **0.0110** | 0.01589 | 0.01202 | 800 / 200 |
+| Gradient Boosting | **−0.4966** | 0.01955 | 0.01411 | 800 / 200 |
 
----
+Source: `models/model_performance.csv` regenerated by `scripts/predictive_models.py`. Max \|corr(feature, target)\| on the aligned frame ≈ **0.09** (was ≈ **1.0** before the fix).
 
-## CI / CD & containers
+Low / negative R² is expected for next-day equity returns — markets are hard to predict. These numbers are honest holdout metrics, not marketing.
 
-| Workflow | Trigger | Role |
-|---|---|---|
-| `ci-cd.yml` | push / PR | black · isort · flake8 · bandit · pip-audit · pytest · Docker build |
-| `pr-checks.yml` | pull requests | PR gate checks |
-| `retrain.yml` | cron `0 2 * * 1` + `workflow_dispatch` | collect → process → retrain models |
+### Old (leaked) vs corrected
 
-```text
-infrastructure/Dockerfile          # python:3.10-slim · MariaDB client · non-root appuser
-financial-risk-dashboard-cicd/…    # mirrored Dockerfile + CICD_SETUP docs
-```
+| Model | Old R² (leaked) | Corrected R² |
+|-------|----------------:|-------------:|
+| Linear Regression | 1.0 | 0.0110 |
+| Ridge Regression | 0.999998 | 0.0110 |
+| Gradient Boosting | 0.997313 | −0.4966 |
 
 ---
 
-## Repository layout
+## Lessons Learned
 
-```text
-financial-risk-dashboard/          ← 51 tracked files
-├── scripts/
-│   ├── data_collection.py         # yfinance + Sweetviz
-│   ├── data_processing.py         # risk metrics + MySQL
-│   └── predictive_models.py       # 8 regressors → CSV + R² chart
-├── data/raw/ · data/processed/
-├── models/model_performance.csv
-├── graphs/                        # 10 PNGs
-├── visualizations/                # generate_graphs.py · tableau_project.twbx
-├── sql/create_tables.sql
-├── monitoring/grafana_dashboard.json
-├── infrastructure/Dockerfile
-├── tests/test_dashboard.py        # 8 pytest cases
-└── .github/workflows/             # ci-cd · pr-checks · retrain
-```
+**Root cause:** In `scripts/data_processing.py`, `Daily Return = Close.pct_change()` and `ROI = (Close/Close.shift(1))-1` are the same series. `scripts/predictive_models.py` then put `Daily Return` in `features` and `ROI` in `target`, so Linear Regression read the answer (R² = 1.0, RMSE ≈ 0). Secondary issues: random `train_test_split` (future leakage for time series) and rolling Volatility/Sharpe computed inclusive of the current row.
+
+**Fix:** forward target + lagged features + chronological split + train-only scaling. A regression test asserts max feature–target \|corr\| < 0.5 and holdout R² < 0.95 so this cannot regress silently.
 
 ---
 
-## Quick start
+## How to Run
 
 ```bash
 git clone https://github.com/ArchanaChetan07/financial-risk-dashboard.git
 cd financial-risk-dashboard
 
-python -m venv .venv
-# Windows: .\.venv\Scripts\Activate.ps1
-source .venv/bin/activate
-
-pip install -r requirements.txt
-
-# Optional MySQL (data_processing): set DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
-python scripts/data_collection.py
-python scripts/data_processing.py
-python scripts/predictive_models.py
-python visualizations/generate_graphs.py
-
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install pandas scikit-learn matplotlib python-dotenv mysql-connector-python pytest
+python scripts/predictive_models.py   # writes models/model_performance.csv
 pytest tests/ -v
+
+docker build -f infrastructure/Dockerfile -t financial-risk-dashboard .
+docker run --rm financial-risk-dashboard
 ```
 
-Docker:
+Optional MySQL: set `DB_HOST` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` then `python scripts/data_processing.py`. Without DB env vars, processing still writes CSVs.
+
+### Tableau workbook
+
+`visualizations/tableau_project.twbx` is a packaged binary and is **not** auto-updated by the model retrain. After regenerating metrics, re-point Tableau at `data/processed/combined_stock_metrics.csv` / refreshed extracts and discard any sheets that cited the old R²≈1.0 values. Grafana JSON under `monitoring/` has no hardcoded R².
+
+---
+
+## Tests
 
 ```bash
-docker build -f infrastructure/Dockerfile -t financial-risk-dashboard .
+pytest tests/ -v
+# 11 passed — includes leakage guards (correlation + chronological split + R² ceiling)
 ```
 
-Open `visualizations/tableau_project.twbx` in Tableau, or import `monitoring/grafana_dashboard.json` into Grafana.
+CI: `.github/workflows/ci-cd.yml` (lint → security → pytest → Docker build). Retrain: `.github/workflows/retrain.yml` (Monday / manual).
 
 ---
 
-## Skills surface
+## Tech Stack
 
-`Python` · `yfinance` · `pandas` · `Sweetviz` · `sklearn` · `matplotlib` · `seaborn` · `MySQL` · `SQLAlchemy` · `Tableau` · `Grafana` · `Docker` · `GitHub Actions` · `pytest` · `bandit` · `ETL` · `risk metrics` · `Sharpe / volatility` · `model comparison` · `scheduled retrain`
-
----
-
-## Roadmap
-
-- Replace ROI target with a forward return (or drop Daily Return from features) so R² reflects genuine forecast skill  
-- Pin NumPy/pandas versions for reproducible local installs  
-- Streamlit / FastAPI interactive risk view over the combined metrics table  
-
----
-
-## Author
-
-**Archana Chetan** · [@ArchanaChetan07](https://github.com/ArchanaChetan07)
-
-Portfolio project demonstrating **financial data engineering + risk analytics + baseline ML + BI packaging + CI/CD**, with metrics traced to committed CSVs — never invented scores.
+| Layer | Technology |
+|-------|------------|
+| Data | yfinance, pandas |
+| Risk metrics | Volatility, Sharpe, ROI / Daily Return |
+| Models | scikit-learn (Linear, Ridge, Gradient Boosting) |
+| Viz | Tableau `.twbx`, Grafana JSON, matplotlib |
+| Ops | Docker, GitHub Actions (CI/CD + retrain) |
+| DB | Optional MySQL (`sql/create_tables.sql`) |
 
 ---
 
 ## License
 
-See repository.
+See repository owner terms for this project.
