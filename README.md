@@ -1,151 +1,160 @@
 # Financial Risk Dashboard
 
-### Equity risk pipeline for four mega-cap tickers — Yahoo Finance ingest, MySQL metrics, and ROI regression benchmarks
+### Yahoo Finance equity ETL + risk metric CSVs, lazypredict model comparison, Tableau workbook, and CI/CD/retrain workflows for AAPL/GOOGL/META/MSFT.
 
-[![CI/CD](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions/workflows/ci-cd.yml)
-[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/pytest-8%20tests-1f8a4c)](tests/test_dashboard.py)
-[![License](https://img.shields.io/badge/license-see%20repo-2d3748)](#license)
-
-End-to-end equity risk analytics for **AAPL**, **MSFT**, **GOOGL**, and **META**: pull one year of Yahoo Finance OHLCV, compute rolling volatility and Sharpe ratio, persist metrics to MySQL (optional), export processed CSVs, and benchmark eight scikit-learn regressors predicting ROI. Includes Sweetviz EDA HTML reports, matplotlib/seaborn charts, and GitHub Actions for lint, security scan, pytest, and Docker build.
+[![GitHub](https://img.shields.io/badge/repo-financial-risk-dashboard-181717?logo=github)](https://github.com/ArchanaChetan07/financial-risk-dashboard)
+[![Language](https://img.shields.io/badge/language-HTML-3572A5)](https://github.com/ArchanaChetan07/financial-risk-dashboard)
+[![License](https://img.shields.io/badge/license-See%20repository-yellow)](https://github.com/ArchanaChetan07/financial-risk-dashboard)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](https://github.com/ArchanaChetan07/financial-risk-dashboard/actions)
 
 ---
 
-## Key Results
+## Overview
 
-| Metric | Value | Source |
-|---|---|---|
-| Tickers tracked | **4** (AAPL, MSFT, GOOGL, META) | `scripts/data_collection.py` |
-| Combined processed rows | **1,008** (252 per ticker) | `data/processed/combined_stock_metrics.csv` |
-| Derived metrics | Daily Return, 20-day Volatility, ROI, Sharpe Ratio | `scripts/data_processing.py` |
-| Regression models compared | **8** (Linear, Ridge, Lasso, ElasticNet, RF, GBM, DT, SVR) | `scripts/predictive_models.py` |
-| Best saved R² (Ridge) | **0.999998** (RMSE 2.24e-05) | `models/model_performance.csv` |
-| MySQL tables | **4** (companies, categories, stock_categories, stock_metrics) | `sql/create_tables.sql` |
-| Unit tests | **8** | `tests/test_dashboard.py` |
-| CI workflows | **3** (ci-cd, pr-checks, retrain) | `.github/workflows/` |
+Students/analysts need a repeatable path from market data download to risk visualizations and quick model baselines.
+
+scripts for data_collection/processing/predictive_models; Sweetviz EDA HTML; combined stock metrics; graphs (Sharpe, volatility, R² comparison); Tableau extract; Grafana JSON; multi-workflow CI.
+
+Committed model_performance.csv ranking regressors by R²/RMSE; visualization assets for presentation; Docker + retrain workflow scaffolding.
+
+This repository is maintained as **production-minded portfolio work**: clear architecture, automated checks where present, and metrics that are **traceable to committed artifacts** (never invented).
 
 ---
 
 ## Architecture
 
+yfinance download → processing metrics CSVs → EDA HTML + graphs → lazypredict baselines → Tableau/Grafana views
+
 ```mermaid
-flowchart TB
-    YF[Yahoo Finance yfinance] --> DC[data_collection.py]
-    DC --> RAW[data/raw/*.csv]
-    RAW --> DP[data_processing.py]
-    DP --> METRICS[Volatility / ROI / Sharpe]
-    METRICS --> CSV[data/processed/combined_stock_metrics.csv]
-    METRICS --> DB[(MySQL stock_metrics)]
-    CSV --> PM[predictive_models.py]
-    PM --> PERF[models/model_performance.csv]
-    CSV --> VIZ[visualizations/generate_graphs.py]
-    RAW --> EDA[Sweetviz HTML reports]
-    CI[GitHub Actions] --> LINT[flake8 / black / isort]
-    CI --> TEST[pytest]
-    CI --> DOCK[Docker build]
+flowchart LR
+  Y[yfinance] --> P[data_processing]
+  P --> C[combined_stock_metrics.csv]
+  C --> V[graphs / Sweetviz]
+  C --> M[predictive_models]
+  M --> CSV[model_performance.csv]
+  C --> T[Tableau / Grafana]
 ```
 
-**How it works:** `data_collection.py` fetches one year of history per ticker and generates Sweetviz EDA reports. `data_processing.py` computes rolling risk metrics, writes per-ticker CSVs plus a combined file, and optionally upserts rows into MySQL. `predictive_models.py` trains eight regressors on Close/Volume/returns features to predict ROI and saves ranked performance. `generate_graphs.py` produces price, volatility, Sharpe, and correlation charts.
+```mermaid
+sequenceDiagram
+  participant U as User/Client
+  participant S as Service/Pipeline
+  participant E as Eval/Tools
+  U->>S: request / job
+  S->>E: execute
+  E-->>S: results
+  S-->>U: report / response
+```
 
 ---
 
-## Tech Stack
+## Results & repository facts
 
-| Layer | Choice |
+> Only values found in code, configs, tests, or generated reports are listed. Absence of a clinical/ML accuracy number means it was **not** published in-repo.
+
+| Metric | Value | Source |
+|---|---|---|
+| Linear Regression R² (artifact) | **1.0** | `models/model_performance.csv` |
+| Ridge Regression R² | **0.999998** | `models/model_performance.csv` |
+| Gradient Boosting R² | **0.997313** | `models/model_performance.csv` |
+| Random Forest R² | **0.995265** | `models/model_performance.csv` |
+| Tickers covered | **AAPL, GOOGL, META, MSFT** | `data/raw/` |
+| Tracked files | **51** | `git tree` |
+| Python modules | **7** | `git tree` |
+| Test-related paths | **2** | `git tree` |
+| CI workflows | **Yes** | `.github/workflows` |
+| Docker present | **Yes** | `repo root` |
+
+```mermaid
+%%{init: {'theme':'base'}}%%
+pie showData title Language composition (bytes)
+    "HTML" : 99
+    "Python" : 1
+    "Dockerfile" : 1
+```
+
+---
+
+## Key features
+
+- Multi-ticker raw/processed CSVs
+- Sweetviz EDA reports
+- Automated graph generation
+- Model performance CSV artifact
+- Tableau packaged workbook
+- Retrain GitHub Action
+
+---
+
+## Tech stack
+
+| Layer | Technology |
 |---|---|
-| Language | Python 3.10 |
-| Data | pandas, yfinance, Sweetviz |
-| Database | MySQL (`mysql-connector-python`, SQLAlchemy) |
-| ML | scikit-learn (8 regressors), StandardScaler, LabelEncoder |
-| Viz | matplotlib, seaborn, scipy stats |
-| Packaging | Docker (`infrastructure/Dockerfile`) |
-| CI | GitHub Actions — lint, bandit, pip-audit, pytest, Docker build |
+| language | Python |
+| data | yfinance |
+| ml | lazypredict / sklearn family |
+| viz | matplotlib + Tableau |
+| ci | ci-cd / pr-checks / retrain workflows |
+| monitor | Grafana dashboard JSON |
 
 ---
 
-## Features
+## Skills demonstrated
 
-- Yahoo Finance ingest for four large-cap tech tickers with local CSV cache
-- Rolling 20-day volatility and Sharpe ratio per trading day
-- Optional MySQL persistence with company/category normalization
-- Sweetviz HTML EDA reports per raw ticker file
-- Eight-model ROI regression benchmark with saved CSV + bar chart
-- High-resolution risk charts (price trends, return distributions, correlation heatmap)
-- Mocked DB connection tests for offline CI
+HTML · yfinance · pandas · lazypredict · matplotlib/seaborn · Tableau · Docker · CI/CD · testing · automation
+
+Keyword surface: **Python · HTML · machine-learning · CI/CD · testing · API · Docker · automation · data-science · software-engineering · system-design · observability · LLM · cloud**
 
 ---
 
-## Installation & Usage
+## Project structure
+
+```text
+financial-risk-dashboard/
+├── scripts/{data_collection,data_processing,predictive_models}.py
+├── data/{raw,processed}/
+├── models/model_performance.csv
+├── graphs/
+├── visualizations/
+├── monitoring/grafana_dashboard.json
+└── .github/workflows/
+```
+
+---
+
+## Installation & usage
 
 ```bash
 git clone https://github.com/ArchanaChetan07/financial-risk-dashboard.git
 cd financial-risk-dashboard
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-```bash
-# 1. Fetch Yahoo Finance data + EDA reports
-cd scripts && python data_collection.py
-
-# 2. Compute metrics (set DB_* env vars for MySQL, or CSV-only still works)
-python data_processing.py
-
-# 3. Train/evaluate regressors
-python predictive_models.py
-
-# 4. Generate charts
-cd ../visualizations && python generate_graphs.py
-
-# Tests
-pytest tests/ -v
-```
-
-**MySQL setup:** run `sql/create_tables.sql`, then export `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
-
-**Docker:**
-
-```bash
-docker build -f infrastructure/Dockerfile -t financial-risk-dashboard .
-docker run --env-file .env financial-risk-dashboard
+python scripts/data_collection.py
+python scripts/predictive_models.py
 ```
 
 ---
 
-## Project Structure
+## How it works
 
-```text
-financial-risk-dashboard/
-├── scripts/
-│   ├── data_collection.py       # yfinance fetch + Sweetviz EDA
-│   ├── data_processing.py       # metrics + MySQL upsert
-│   └── predictive_models.py     # 8-model ROI regression
-├── visualizations/
-│   └── generate_graphs.py         # matplotlib/seaborn charts
-├── data/
-│   ├── raw/                       # per-ticker Yahoo CSVs
-│   └── processed/                 # metrics + EDA HTML
-├── models/
-│   └── model_performance.csv      # saved R² / RMSE rankings
-├── sql/create_tables.sql
-├── tests/test_dashboard.py        # 8 pytest cases
-├── infrastructure/Dockerfile
-└── .github/workflows/             # ci-cd, pr-checks, retrain
-```
+Collection scripts pull Yahoo Finance history; processing computes risk/return features; predictive_models runs a battery of regressors and writes R²/RMSE to CSV; visuals and Tableau communicate results.
 
 ---
 
-## Future Improvements
+## Future improvements
 
-- Add walk-forward validation to avoid ROI feature leakage in regression benchmarks
-- Streamlit or static dashboard over `combined_stock_metrics.csv`
-- Wire retrain workflow to scheduled model refresh on new Yahoo pulls
-- Parameterize ticker list via config instead of hard-coded symbols
+- Investigate near-perfect R² (possible leakage/target triviality) before citing as predictive power
+- Replace template root README
+- Live Streamlit risk dashboard instead of static HTML only
 
 ---
 
 ## License
 
-See repository license file if present.
+See repository.
+
+---
+
+<p align="center">
+  <b>Financial Risk Dashboard</b><br/>
+  <a href="https://github.com/ArchanaChetan07/financial-risk-dashboard">github.com/ArchanaChetan07/financial-risk-dashboard</a>
+</p>
